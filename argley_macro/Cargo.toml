@@ -1,0 +1,25 @@
+[package]
+name = "argley_macro"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.60.0"
+license = "Apache-2.0"
+authors = [
+  "Alorel <amolc@pm.me>",
+]
+readme = "README.md"
+description = "Macro for the `argley` crate"
+repository = "https://github.com/Alorel/argley-rs"
+keywords = ["command", "arguments", "args", "derive", "macro"]
+categories = ["development-tools"]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+proc-macro = true
+
+[dependencies]
+delegate-display = "1.0.8"
+proc-macro2 = "1"
+syn = {version = "2"}
+quote = "1"

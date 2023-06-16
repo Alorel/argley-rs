@@ -1,8 +1,38 @@
-[package]
-name = "cmd_args"
-version = "0.1.0"
-edition = "2021"
-
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[package]
+name = "argley"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.60.0"
+license = "Apache-2.0"
+authors = [
+  "Alorel <amolc@pm.me>",
+]
+readme = "README.md"
+description = "Turn a struct into arguments for a `Command`"
+repository = "https://github.com/Alorel/argley-rs"
+keywords = ["command", "arguments", "args", "derive", "macro"]
+categories = ["development-tools"]
+include = [
+  "src",
+  "LICENSE",
+  "README.md",
+]
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = [
+  "--cfg",
+  "doc_cfg",
+]
+
+[features]
+default = ["derive"]
+derive = ["dep:argley_macro"]
+
 [dependencies]
+argley_macro = {version = "0.1", path = "argley_macro", optional = true}
+
+[workspace]
+members = ["argley_macro", "argley_test"]
