@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/.idea/cmd_args.iml" filepath="$PROJECT_DIR$/.idea/cmd_args.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/argley.iml" filepath="$PROJECT_DIR$/.idea/argley.iml" />
     </modules>
   </component>
 </project>
