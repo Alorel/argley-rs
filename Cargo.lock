@@ -4,14 +4,14 @@ version = 3
 
 [[package]]
 name = "argley"
-version = "1.1.1"
+version = "1.1.2"
 dependencies = [
  "argley_macro",
 ]
 
 [[package]]
 name = "argley_macro"
-version = "1.1.0"
+version = "1.1.1"
 dependencies = [
  "delegate-display",
  "proc-macro2",

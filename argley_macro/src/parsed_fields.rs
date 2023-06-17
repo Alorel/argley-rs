@@ -3,7 +3,7 @@ use quote::{quote, ToTokens, TokenStreamExt};
 use syn::Data;
 
 use crate::parsed_variant::ParsedVariant;
-use crate::struct_field::StructField;
+use crate::struct_field::{StructField, TypedFields};
 use crate::{new_ident, TryCollectStable, ARG_CONSUMER, PROP_ANY_ADDED};
 
 pub enum ParsedFields {
@@ -15,7 +15,12 @@ impl ParsedFields {
     pub fn is_empty(&self) -> bool {
         match self {
             Self::Struct(fields) => fields.is_empty(),
-            Self::Enum(variants) => variants.is_empty(),
+            Self::Enum(variants) => {
+                variants.is_empty()
+                    || variants.iter().all(move |v| {
+                        matches!(v.fields, TypedFields::Unit) && v.unit_variant_value.is_none()
+                    })
+            }
         }
     }
 }

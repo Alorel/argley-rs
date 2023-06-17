@@ -49,6 +49,14 @@ mod test {
         #[derive(Arg)]
         struct Nested(u8);
 
+        /// CI test: we error out on warnings and we're checking that we don't produce an unused
+        /// fn argument here.
+        #[derive(Arg)]
+        enum CompileTestEnum1 {
+            #[allow(dead_code)]
+            Variant,
+        }
+
         #[derive(Arg)]
         enum Foo {
             Unit,
