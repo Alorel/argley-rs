@@ -132,7 +132,7 @@ impl<T: Arg, S> Arg for HashSet<T, S> {
     impl_iter!(body => is_empty);
 }
 
-impl<T: Arg + Clone> Arg for Cow<'_, T> {
+impl<'a, T: ?Sized + Arg + ToOwned + 'a> Arg for Cow<'a, T> {
     impl_deref!(body);
 }
 
