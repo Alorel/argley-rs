@@ -5,7 +5,8 @@ use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::Arc;
 
-use crate::{Arg, ArgConsumer};
+use crate::arg_consumer::ArgConsumer;
+use crate::Arg;
 
 // ========== MACROS ==========
 
