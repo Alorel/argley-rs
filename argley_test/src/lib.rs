@@ -41,6 +41,7 @@ mod test {
     }
 
     mod enums {
+        use std::borrow::Cow;
         use std::ffi::OsString;
 
         use argley::prelude::*;
@@ -63,7 +64,7 @@ mod test {
                 _b: u8,
 
                 #[arg(short)]
-                c: u8,
+                c: Cow<'static, str>,
             },
             NamedNoSkip {
                 #[arg(variadic)]
@@ -77,11 +78,11 @@ mod test {
             assert!(Foo::Named {
                 a: Nested(10),
                 _b: 20,
-                c: 30,
+                c: "sea".into(),
             }
             .add_unnamed_to(&mut result));
 
-            assert_eq!(&result[..], &["-c", "30", "10"]);
+            assert_eq!(&result[..], &["-c", "sea", "10"]);
         }
 
         #[test]
