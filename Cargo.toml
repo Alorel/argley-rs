@@ -2,7 +2,7 @@
 
 [package]
 name = "argley"
-version = "0.1.0"
+version = "1.0.0"
 edition = "2021"
 rust-version = "1.60.0"
 license = "Apache-2.0"
@@ -32,7 +32,7 @@ default = ["derive"]
 derive = ["dep:argley_macro"]
 
 [dependencies]
-argley_macro = {version = "0.1", path = "argley_macro", optional = true}
+argley_macro = {version = "1", path = "argley_macro", optional = true}
 
 [workspace]
 members = ["argley_macro", "argley_test"]
