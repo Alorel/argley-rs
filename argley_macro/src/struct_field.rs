@@ -7,9 +7,7 @@ use syn::{Field, Fields};
 
 use crate::field_ident::FieldIdent;
 use crate::field_opts::FieldOpts;
-use crate::{
-    new_ident, parse_eq, try_collect, try_collect_to, ARG_CONSUMER, ATTR, OPT_SKIP, PROP_ANY_ADDED,
-};
+use crate::{new_ident, parse_eq, TryCollectStable, ARG_CONSUMER, ATTR, OPT_SKIP, PROP_ANY_ADDED};
 
 pub struct StructField {
     pub opts: FieldOpts,
@@ -84,113 +82,125 @@ impl StructField {
         let mut has_skips = false;
         let mut attr_collector = Vec::new();
 
-        let iter = fields.into_iter().enumerate().filter_map(
-            |(idx, field): (usize, Field)| -> Option<syn::Result<StructField>> {
-                let mut opts = {
-                    let attrs = field.attrs.into_iter().filter_map(move |attr| {
-                        if !attr.path().is_ident(ATTR) {
-                            return None;
+        let mut fields = fields
+            .into_iter()
+            .enumerate()
+            .filter_map(
+                |(idx, field): (usize, Field)| -> Option<syn::Result<StructField>> {
+                    let mut opts = {
+                        let attrs = field
+                            .attrs
+                            .into_iter()
+                            .filter_map(move |attr| {
+                                if !attr.path().is_ident(ATTR) {
+                                    return None;
+                                }
+
+                                let mut opts = FieldOpts::default();
+                                let opts_result = attr.parse_nested_meta(|meta| {
+                                    let ident = match meta.path.get_ident() {
+                                        Some(ident) => ident,
+                                        None => {
+                                            return Err(syn::Error::new(
+                                                meta.path.span(),
+                                                "Expected `Ident`",
+                                            ));
+                                        }
+                                    };
+
+                                    match ident.to_string().as_str() {
+                                        v if v == OPT_SKIP => {
+                                            opts.skip = true;
+                                        }
+                                        "short" => {
+                                            opts.short = true;
+                                        }
+                                        "variadic" => {
+                                            opts.variadic = Some(ident.clone());
+                                        }
+                                        "position" => {
+                                            let literal: Literal = parse_eq(meta.input)?;
+                                            if let Ok(pos) = literal.to_string().parse() {
+                                                opts.position = Some(pos);
+                                            } else {
+                                                return Err(syn::Error::new(
+                                                    literal.span(),
+                                                    "Position must be a u16",
+                                                ));
+                                            }
+                                        }
+                                        "formatter" => {
+                                            opts.formatter = Some(parse_eq(meta.input)?);
+                                        }
+                                        "rename" => {
+                                            opts.rename = Some(parse_eq(meta.input)?);
+                                        }
+                                        _ => {
+                                            return Err(syn::Error::new(
+                                                ident.span(),
+                                                "Unknown option",
+                                            ))
+                                        }
+                                    };
+                                    Ok(())
+                                });
+
+                                Some(if let Err(e) = opts_result {
+                                    Err(e)
+                                } else {
+                                    Ok(opts)
+                                })
+                            })
+                            .try_collect_to(&mut attr_collector);
+
+                        if let Err(e) = attrs {
+                            return Some(Err(e));
                         }
 
-                        let mut opts = FieldOpts::default();
-                        let opts_result = attr.parse_nested_meta(|meta| {
-                            let ident = match meta.path.get_ident() {
-                                Some(ident) => ident,
-                                None => {
-                                    return Err(syn::Error::new(
-                                        meta.path.span(),
-                                        "Expected `Ident`",
-                                    ))
-                                }
-                            };
+                        attr_collector.drain(..).sum::<FieldOpts>()
+                    };
 
-                            match ident.to_string().as_str() {
-                                v if v == OPT_SKIP => {
-                                    opts.skip = true;
-                                }
-                                "short" => {
-                                    opts.short = true;
-                                }
-                                "variadic" => {
-                                    opts.variadic = Some(ident.clone());
-                                }
-                                "position" => {
-                                    let literal: Literal = parse_eq(meta.input)?;
-                                    if let Ok(pos) = literal.to_string().parse() {
-                                        opts.position = Some(pos);
-                                    } else {
-                                        return Err(syn::Error::new(
-                                            literal.span(),
-                                            "Position must be a u16",
-                                        ));
-                                    }
-                                }
-                                "formatter" => {
-                                    opts.formatter = Some(parse_eq(meta.input)?);
-                                }
-                                "rename" => {
-                                    opts.rename = Some(parse_eq(meta.input)?);
-                                }
-                                _ => return Err(syn::Error::new(ident.span(), "Unknown option")),
-                            };
-                            Ok(())
-                        });
-
-                        Some(if let Err(e) = opts_result {
-                            Err(e)
-                        } else {
-                            Ok(opts)
-                        })
-                    });
-
-                    if let Err(e) = try_collect_to(attrs, &mut attr_collector) {
-                        return Some(Err(e));
+                    if opts.skip {
+                        has_skips = true;
+                        return None;
                     }
 
-                    attr_collector.drain(..).sum::<FieldOpts>()
-                };
-
-                if opts.skip {
-                    has_skips = true;
-                    return None;
-                }
-
-                if let Some(variadic) = &opts.variadic {
-                    if has_variadic {
-                        return Some(Err(syn::Error::new(
-                            variadic.span(),
-                            "Only one variadic field allowed",
-                        )));
-                    }
-                    has_variadic = true;
-                }
-
-                let ident = if let Some(ident) = field.ident {
-                    FieldIdent::Ident(ident)
-                } else {
-                    // Make unnamed by default
-                    if opts.is_default_field_name() {
-                        opts.position = Some(idx.try_into().unwrap_or(u16::MAX));
+                    if let Some(variadic) = &opts.variadic {
+                        if has_variadic {
+                            return Some(Err(syn::Error::new(
+                                variadic.span(),
+                                "Only one variadic field allowed",
+                            )));
+                        }
+                        has_variadic = true;
                     }
 
-                    let ident = FieldIdent::Idx(idx);
-                    if is_struct {
-                        ident
+                    let ident = if let Some(ident) = field.ident {
+                        FieldIdent::Ident(ident)
                     } else {
-                        ident.with_prefix('f')
-                    }
-                };
+                        // Make unnamed by default
+                        if opts.is_default_field_name() {
+                            opts.position = Some(idx.try_into().unwrap_or(u16::MAX));
+                        }
 
-                Some(Ok(StructField {
-                    opts,
-                    idx,
-                    is_struct,
-                    ident,
-                }))
-            },
-        );
+                        let ident = FieldIdent::Idx(idx);
+                        if is_struct {
+                            ident
+                        } else {
+                            ident.with_prefix('f')
+                        }
+                    };
 
-        let mut fields = try_collect(iter)?;
+                    Some(Ok(StructField {
+                        opts,
+                        idx,
+                        is_struct,
+                        ident,
+                    }))
+                },
+            )
+            .try_collect()?;
+
         if is_struct {
             fields.sort_by(StructField::cmp);
         }

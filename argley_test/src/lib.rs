@@ -40,7 +40,7 @@ mod test {
         assert_eq!(&result[..], &["formatter-test"]);
     }
 
-    mod r#enum {
+    mod enums {
         use std::ffi::OsString;
 
         use argley::prelude::*;
@@ -51,6 +51,9 @@ mod test {
         #[derive(Arg)]
         enum Foo {
             Unit,
+
+            #[arg(value = &Nested(100))]
+            ValuedUnit,
             Tuple(&'static str, #[arg(rename = "some-num")] u8, u8),
             Named {
                 #[arg(position = 0)]
@@ -106,6 +109,13 @@ mod test {
             let mut result = Vec::<OsString>::new();
             assert!(!Foo::Unit.add_unnamed_to(&mut result));
             assert!(result.is_empty());
+        }
+
+        #[test]
+        fn unit_valued() {
+            let mut result = Vec::new();
+            assert!(Foo::ValuedUnit.add_unnamed_to(&mut result));
+            assert_eq!(&result[..], &["100"]);
         }
     }
 }
