@@ -27,12 +27,18 @@ const PROP_ANY_ADDED: &str = "any_added";
 ///
 /// | Attribute | Description |
 /// |---|---|
-/// | `arg(skip)` | Exclude this property |
+/// | `arg(skip)` | Exclude this property. Unavailable for fields in tuple enum variants. |
 /// | `arg(short)` | Prefix with `-` instead of `--`. Ignored on variadic/positional arguments |
 /// | `arg(position = INTEGER)` | Positional argument. |
 /// | `arg(variadic)` | Shorthand for putting an argument in the final position |
 /// | `arg(rename = "new_name")` | Rename the argument |
 /// | `arg(formatter = path::to::formatter)` | Format the field with the given function. Has a signature of `fn(&T) -> impl Arg` |
+///
+/// Variant attributes:
+///
+/// | Attribute | Description |
+/// |---|---|
+/// | `arg(value = EXPRESSION)` | Make the given variant push the given expression as its arguments (e.g. `&[&str]` or `PathBuf`) |
 #[proc_macro_derive(Arg, attributes(arg))]
 pub fn derive_args(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let Runtime {
@@ -79,20 +85,27 @@ fn new_ident(label: &str) -> Ident {
     Ident::new(label, Span::call_site())
 }
 
-fn try_collect<T, E>(iter: impl Iterator<Item = Result<T, E>>) -> Result<Vec<T>, E> {
-    let mut vec = Vec::new();
-    try_collect_to(iter, &mut vec)?;
-    Ok(vec)
+/// Tmp stable version
+trait TryCollectStable<T, E> {
+    fn try_collect(self) -> Result<Vec<T>, E>;
+
+    fn try_collect_to(self, vec: &mut Vec<T>) -> Result<(), E>;
 }
-fn try_collect_to<T, E>(
-    iter: impl Iterator<Item = Result<T, E>>,
-    vec: &mut Vec<T>,
-) -> Result<(), E> {
-    for item in iter {
-        vec.push(item?);
+
+impl<T, E, I: Iterator<Item = Result<T, E>>> TryCollectStable<T, E> for I {
+    fn try_collect(self) -> Result<Vec<T>, E> {
+        let mut vec = Vec::new();
+        self.try_collect_to(&mut vec)?;
+        Ok(vec)
     }
 
-    Ok(())
+    fn try_collect_to(self, vec: &mut Vec<T>) -> Result<(), E> {
+        for item in self {
+            vec.push(item?);
+        }
+
+        Ok(())
+    }
 }
 
 fn parse_eq<T: Parse>(stream: ParseStream) -> syn::Result<T> {

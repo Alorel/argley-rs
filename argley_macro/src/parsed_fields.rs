@@ -4,7 +4,7 @@ use syn::Data;
 
 use crate::parsed_variant::ParsedVariant;
 use crate::struct_field::StructField;
-use crate::{new_ident, try_collect, ARG_CONSUMER, PROP_ANY_ADDED};
+use crate::{new_ident, TryCollectStable, ARG_CONSUMER, PROP_ANY_ADDED};
 
 pub enum ParsedFields {
     Struct(Vec<StructField>),
@@ -80,26 +80,12 @@ impl TryFrom<Data> for ParsedFields {
                 Self::Struct(data.into())
             }
             Data::Enum(data) => {
-                let variants =
-                    data.variants
-                        .into_iter()
-                        .map(|variant| -> syn::Result<ParsedVariant> {
-                            if let Some((_, disc)) = variant.discriminant {
-                                return Err(syn::Error::new_spanned(
-                                    disc,
-                                    "Discriminants not supported",
-                                ));
-                            }
-
-                            let fields = StructField::collect_from_fields(variant.fields, false)?;
-
-                            Ok(ParsedVariant {
-                                ident: variant.ident,
-                                fields,
-                            })
-                        });
-
-                Self::Enum(try_collect(variants)?)
+                let variants = data
+                    .variants
+                    .into_iter()
+                    .map(ParsedVariant::try_from)
+                    .try_collect()?;
+                Self::Enum(variants)
             }
             Data::Union(un) => {
                 return Err(syn::Error::new_spanned(
