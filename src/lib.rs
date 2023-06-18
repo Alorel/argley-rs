@@ -60,6 +60,8 @@
 //!     "42",
 //! ]);
 //! ```
+//!
+//! Support for [`async-std`](async_std) and [`tokio`] can be enabled via their respective features.
 
 #![warn(missing_docs)]
 #![cfg_attr(doc_cfg, feature(doc_cfg))]

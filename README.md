@@ -31,4 +31,7 @@ let output = Command::new("some-application")
   .unwrap();
 ```
 
+Support for [async-std](https://crates.io/crates/async-std) and [tokio](https://crates.io/crates/tokio) can be enabled
+via their respective features.
+
 See crate-level docs for detailed configuration options.
