@@ -36,6 +36,39 @@ impl ArgConsumer for Command {
     }
 }
 
+impl ArgConsumer for OsString {
+    fn add_arg(&mut self, arg: impl AsRef<OsStr>) -> &mut Self {
+        if !self.is_empty() {
+            pre_push_one(self, arg.as_ref());
+        }
+        self.push(arg.as_ref());
+        self
+    }
+
+    fn add_args(&mut self, args: impl IntoIterator<Item = impl AsRef<OsStr>>) -> &mut Self {
+        let mut args = args.into_iter();
+
+        if let Some(first) = args.next() {
+            self.add_arg(first.as_ref());
+        } else {
+            return self;
+        }
+
+        // Avoid the !self.is_empty() check per iteration
+        for arg in args {
+            pre_push_one(self, arg.as_ref());
+            self.push(arg.as_ref());
+        }
+
+        self
+    }
+}
+
+fn pre_push_one(this: &mut OsString, arg: &OsStr) {
+    this.reserve(arg.len() + 1);
+    this.push(" ");
+}
+
 impl ArgConsumer for CollectedArgs {
     #[inline]
     fn add_arg(&mut self, arg: impl AsRef<OsStr>) -> &mut Self {
