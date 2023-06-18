@@ -1,5 +1,6 @@
 #[cfg(test)]
 mod test {
+    use std::ffi::{OsStr, OsString};
     use std::fmt::{Display, Formatter};
 
     use derive_more::Display;
@@ -107,6 +108,14 @@ mod test {
 
         assert_not_impl_all!(Wrapper<NonDisplay>: Arg);
         assert_impl_one!(Wrapper<u8>: Arg);
+    }
+
+    #[test]
+    fn collect_to_string() {
+        let args = ["--foo", "bar", "--qux", "baz"];
+        let as_str = args.collect_to::<OsString>();
+
+        assert_eq!(as_str, OsStr::new("--foo bar --qux baz"));
     }
 
     mod enums {
