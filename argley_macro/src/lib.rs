@@ -3,6 +3,7 @@
 #![warn(missing_docs)]
 #![allow(clippy::manual_let_else)]
 
+use crate::container_opts::ContainerOpts;
 use proc_macro2::{Ident, Span};
 use quote::quote;
 use syn::parse::{Parse, ParseStream};
@@ -10,6 +11,7 @@ use syn::{parse_macro_input, DeriveInput, Generics, Token};
 
 use crate::parsed_fields::ParsedFields;
 
+mod container_opts;
 mod field_ident;
 mod field_opts;
 mod parsed_fields;
@@ -23,7 +25,7 @@ const PROP_ANY_ADDED: &str = "any_added";
 
 /// Derive the `Arg` trait.
 ///
-/// Field attributes:
+/// # Field attributes
 ///
 /// | Attribute | Description |
 /// |---|---|
@@ -34,7 +36,13 @@ const PROP_ANY_ADDED: &str = "any_added";
 /// | `arg(rename = "new_name")` | Rename the argument |
 /// | `arg(formatter = path::to::formatter)` | Format the field with the given function. Has a signature of `fn(&T) -> impl Arg` |
 ///
-/// Variant attributes:
+/// # Container attributes
+///
+/// | Attribute | Description |
+/// |---|---|
+/// | `arg(drop_name)` | Derive an `Arg::add_to` that ignores its `name` parameter |
+///
+/// # Variant attributes
 ///
 /// | Attribute | Description |
 /// |---|---|
@@ -45,13 +53,27 @@ pub fn derive_args(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         struct_name,
         generics,
         fields,
+        opts,
     } = parse_macro_input!(input as Runtime);
 
     let (g1, g2, g3) = generics.split_for_impl();
 
+    let named_impl = if opts.drop_name {
+        Some(quote! {
+            #[inline]
+            fn add_to(&self, _: &str, consumer: &mut impl ::argley::ArgConsumer) -> bool {
+                ::argley::Arg::add_unnamed_to(self, consumer)
+            }
+        })
+    } else {
+        None
+    };
+
     (quote! {
         #[automatically_derived]
         impl #g1 ::argley::Arg for #struct_name #g2 #g3 {
+            #named_impl
+
             #fields
         }
     })
@@ -62,6 +84,7 @@ struct Runtime {
     struct_name: Ident,
     generics: Generics,
     fields: ParsedFields,
+    opts: ContainerOpts,
 }
 
 impl Parse for Runtime {
@@ -70,11 +93,13 @@ impl Parse for Runtime {
             ident: struct_name,
             generics,
             data,
+            attrs,
             ..
         } = input.parse::<DeriveInput>()?;
 
         Ok(Self {
             fields: ParsedFields::try_from(data)?,
+            opts: attrs.try_into()?,
             struct_name,
             generics,
         })
