@@ -24,17 +24,31 @@ pub trait ArgConsumer {
     }
 }
 
-impl ArgConsumer for Command {
-    #[inline]
-    fn add_arg(&mut self, arg: impl AsRef<OsStr>) -> &mut Self {
-        self.arg(arg)
-    }
+macro_rules! command_arg_consumer {
+    ($ty: ty) => {
+        impl ArgConsumer for $ty {
+            #[inline]
+            fn add_arg(&mut self, arg: impl AsRef<OsStr>) -> &mut Self {
+                self.arg(arg)
+            }
 
-    #[inline]
-    fn add_args(&mut self, args: impl IntoIterator<Item = impl AsRef<OsStr>>) -> &mut Self {
-        self.args(args)
-    }
+            #[inline]
+            fn add_args(&mut self, args: impl IntoIterator<Item = impl AsRef<OsStr>>) -> &mut Self {
+                self.args(args)
+            }
+        }
+    };
 }
+
+command_arg_consumer!(Command);
+
+#[cfg(feature = "tokio")]
+#[cfg_attr(doc_cfg, doc(cfg(feature = "tokio")))]
+command_arg_consumer!(tokio::process::Command);
+
+#[cfg(feature = "async-std")]
+#[cfg_attr(doc_cfg, doc(cfg(feature = "async-std")))]
+command_arg_consumer!(async_std::process::Command);
 
 impl ArgConsumer for OsString {
     fn add_arg(&mut self, arg: impl AsRef<OsStr>) -> &mut Self {
