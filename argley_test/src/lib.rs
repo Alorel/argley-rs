@@ -1,13 +1,14 @@
 #[cfg(test)]
 mod test {
     use argley::prelude::*;
+    use argley::CollectedArgs;
 
     #[test]
     fn unit_struct() {
         #[derive(Arg)]
         struct Unit;
 
-        let mut result = Vec::new();
+        let mut result = CollectedArgs::new();
         assert!(!Unit.add_unnamed_to(&mut result));
         assert!(result.is_empty());
     }
@@ -17,7 +18,7 @@ mod test {
         #[derive(Arg)]
         struct NoProps {}
 
-        let mut result = Vec::new();
+        let mut result = CollectedArgs::new();
         assert!(!NoProps {}.add_unnamed_to(&mut result));
         assert!(result.is_empty());
     }
@@ -34,13 +35,14 @@ mod test {
         #[derive(Arg)]
         struct WithFormatter(#[arg(formatter = Newtype::args)] Newtype);
 
-        let mut result = Vec::new();
+        let mut result = CollectedArgs::new();
 
         assert!(WithFormatter(Newtype("formatter-test")).add_unnamed_to(&mut result));
         assert_eq!(&result[..], &["formatter-test"]);
     }
 
     mod enums {
+        use argley::CollectedArgs;
         use std::borrow::Cow;
         use std::ffi::OsString;
 
@@ -82,7 +84,7 @@ mod test {
 
         #[test]
         fn named() {
-            let mut result = Vec::new();
+            let mut result = CollectedArgs::new();
             assert!(Foo::Named {
                 a: Nested(10),
                 _b: 20,
@@ -95,7 +97,7 @@ mod test {
 
         #[test]
         fn tuple() {
-            let mut result = Vec::new();
+            let mut result = CollectedArgs::new();
             assert!(Foo::Tuple("foo", 0, 1).add_unnamed_to(&mut result));
             assert_eq!(&result[..], &["--some-num", "0", "foo", "1"]);
         }
@@ -108,7 +110,7 @@ mod test {
 
         #[test]
         fn named_no_skip() {
-            let mut result = Vec::new();
+            let mut result = CollectedArgs::new();
             assert!(Foo::NamedNoSkip { a: 0 }.add_unnamed_to(&mut result));
             assert_eq!(&result[..], &["0"]);
         }
@@ -122,7 +124,7 @@ mod test {
 
         #[test]
         fn unit_valued() {
-            let mut result = Vec::new();
+            let mut result = CollectedArgs::new();
             assert!(Foo::ValuedUnit.add_unnamed_to(&mut result));
             assert_eq!(&result[..], &["100"]);
         }

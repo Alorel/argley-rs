@@ -2,6 +2,9 @@ use crate::Arg;
 use std::ffi::{OsStr, OsString};
 use std::process::Command;
 
+/// [`Arg`]s collected in a [`Vec`]
+pub type CollectedArgs = Vec<OsString>;
+
 /// An [`Arg`] consumer
 pub trait ArgConsumer {
     /// Add one argument
@@ -33,7 +36,7 @@ impl ArgConsumer for Command {
     }
 }
 
-impl ArgConsumer for Vec<OsString> {
+impl ArgConsumer for CollectedArgs {
     #[inline]
     fn add_arg(&mut self, arg: impl AsRef<OsStr>) -> &mut Self {
         self.push(arg.as_ref().to_owned());
