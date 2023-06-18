@@ -14,8 +14,10 @@ mod test {
         struct Unit;
 
         let mut result = CollectedArgs::new();
-        assert!(!Unit.add_unnamed_to(&mut result));
-        assert!(result.is_empty());
+        assert!(!Unit.add_unnamed_to(&mut result), "add_unnamed_to");
+        assert!(result.is_empty(), "is_empty");
+
+        assert_eq!(result, Unit.collect_to::<CollectedArgs>(), "collect_to");
     }
 
     #[test]
@@ -24,8 +26,14 @@ mod test {
         struct NoProps {}
 
         let mut result = CollectedArgs::new();
-        assert!(!NoProps {}.add_unnamed_to(&mut result));
-        assert!(result.is_empty());
+        assert!(!NoProps {}.add_unnamed_to(&mut result), "add_unnamed_to");
+        assert!(result.is_empty(), "is_empty");
+
+        assert_eq!(
+            result,
+            NoProps {}.collect_to::<CollectedArgs>(),
+            "collect_to"
+        );
     }
 
     #[test]
@@ -37,12 +45,21 @@ mod test {
         #[derive(Arg)]
         struct Kept(&'static str);
 
+        #[derive(Arg)]
+        struct TopLevel {
+            dropped: Dropped,
+            kept: Kept,
+        }
+
         let mut result = CollectedArgs::new();
+        let toplevel = TopLevel {
+            dropped: Dropped("d"),
+            kept: Kept("k"),
+        };
 
-        assert!(Dropped("d").add_to("dropped", &mut result));
-        assert!(Kept("k").add_to("kept", &mut result));
-
-        assert_eq!(&result[..], &["d", "kept", "k"]);
+        assert!(toplevel.add_unnamed_to(&mut result), "add_unnamed_to");
+        assert_eq!(&result[..], &["d", "--kept", "k"], "result");
+        assert_eq!(result, toplevel.collect_to::<CollectedArgs>(), "collect_to");
     }
 
     #[test]
@@ -58,9 +75,11 @@ mod test {
         struct WithFormatter(#[arg(formatter = Newtype::args)] Newtype);
 
         let mut result = CollectedArgs::new();
+        let source = WithFormatter(Newtype("formatter-test"));
 
-        assert!(WithFormatter(Newtype("formatter-test")).add_unnamed_to(&mut result));
-        assert_eq!(&result[..], &["formatter-test"]);
+        assert!(source.add_unnamed_to(&mut result), "add_unnamed_to");
+        assert_eq!(&result[..], &["formatter-test"], "result");
+        assert_eq!(result, source.collect_to::<CollectedArgs>(), "collect_to");
     }
 
     #[test]
@@ -69,10 +88,6 @@ mod test {
         #[arg(to_string)]
         #[display(fmt = "foo: {_0}")]
         struct Newtype(u8);
-
-        let mut result = CollectedArgs::new();
-        Newtype(42).add_unnamed_to(&mut result);
-        assert_eq!(&result[..], &["foo: 42"]);
 
         #[derive(Arg)]
         #[arg(to_string)]
@@ -85,6 +100,10 @@ mod test {
 
         #[allow(dead_code)]
         struct NonDisplay;
+
+        let mut result = CollectedArgs::new();
+        Newtype(42).add_unnamed_to(&mut result);
+        assert_eq!(&result[..], &["foo: 42"]);
 
         assert_not_impl_all!(Wrapper<NonDisplay>: Arg);
         assert_impl_one!(Wrapper<u8>: Arg);
