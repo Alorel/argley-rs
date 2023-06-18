@@ -2,6 +2,7 @@
 mod test {
     use argley::prelude::*;
     use argley::CollectedArgs;
+    use derive_more::Display;
 
     #[test]
     fn unit_struct() {
@@ -56,6 +57,18 @@ mod test {
 
         assert!(WithFormatter(Newtype("formatter-test")).add_unnamed_to(&mut result));
         assert_eq!(&result[..], &["formatter-test"]);
+    }
+
+    #[test]
+    fn to_string() {
+        #[derive(Arg, Display)]
+        #[arg(to_string)]
+        #[display(fmt = "foo: {_0}")]
+        struct Newtype(u8);
+
+        let mut result = CollectedArgs::new();
+        Newtype(42).add_unnamed_to(&mut result);
+        assert_eq!(&result[..], &["foo: 42"]);
     }
 
     mod enums {

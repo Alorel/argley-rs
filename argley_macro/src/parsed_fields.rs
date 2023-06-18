@@ -1,5 +1,6 @@
 use proc_macro2::{Delimiter, Group, Punct, Spacing, TokenStream};
 use quote::{quote, ToTokens, TokenStreamExt};
+use syn::spanned::Spanned;
 use syn::Data;
 
 use crate::parsed_variant::ParsedVariant;
@@ -22,6 +23,15 @@ impl ParsedFields {
                     })
             }
         }
+    }
+
+    /// Like the [`TryFrom`] implementation, but always uses an empty vec for fields
+    pub fn new_empty_from(data: &Data) -> syn::Result<Self> {
+        Ok(match *data {
+            Data::Struct(_) => Self::Struct(Vec::new()),
+            Data::Enum(_) => Self::Enum(Vec::new()),
+            Data::Union(ref un) => return Err(on_union(&un.union_token)),
+        })
     }
 }
 
@@ -92,14 +102,13 @@ impl TryFrom<Data> for ParsedFields {
                     .try_collect()?;
                 Self::Enum(variants)
             }
-            Data::Union(un) => {
-                return Err(syn::Error::new_spanned(
-                    un.union_token,
-                    "Unions not supported",
-                ))
-            }
+            Data::Union(un) => return Err(on_union(&un.union_token)),
         })
     }
+}
+
+fn on_union(un: &impl Spanned) -> syn::Error {
+    syn::Error::new(un.span(), "Unions not supported")
 }
 
 struct FunctionSignature<'a> {

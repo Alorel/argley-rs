@@ -1,3 +1,4 @@
+use syn::spanned::Spanned;
 use syn::Attribute;
 
 use crate::{TryCollectStable, ATTR};
@@ -5,6 +6,7 @@ use crate::{TryCollectStable, ATTR};
 #[derive(Default)]
 pub struct ContainerOpts {
     pub drop_name: bool,
+    pub to_string: bool,
 }
 
 impl TryFrom<Vec<Attribute>> for ContainerOpts {
@@ -31,13 +33,25 @@ impl TryFrom<Attribute> for ContainerOpts {
 
     fn try_from(attr: Attribute) -> syn::Result<Self> {
         let mut opts = Self::default();
+
         attr.parse_nested_meta(|meta| {
-            if meta.path.is_ident("drop_name") {
-                opts.drop_name = true;
-                Ok(())
+            let error_span = if let Some(path) = meta.path.get_ident() {
+                match path.to_string().as_str() {
+                    "to_string" => {
+                        opts.to_string = true;
+                        return Ok(());
+                    }
+                    "drop_name" => {
+                        opts.drop_name = true;
+                        return Ok(());
+                    }
+                    _ => path.span(),
+                }
             } else {
-                Err(syn::Error::new_spanned(meta.path, "unknown option"))
-            }
+                meta.path.span()
+            };
+
+            Err(syn::Error::new(error_span, "unknown option"))
         })?;
 
         Ok(opts)
@@ -50,6 +64,9 @@ impl FromIterator<ContainerOpts> for ContainerOpts {
             .fold(Self::default(), move |mut acc, opts| {
                 if opts.drop_name {
                     acc.drop_name = true;
+                }
+                if opts.to_string {
+                    acc.to_string = true;
                 }
                 acc
             })

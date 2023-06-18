@@ -5,7 +5,7 @@
 
 use crate::container_opts::ContainerOpts;
 use proc_macro2::{Ident, Span};
-use quote::quote;
+use quote::{quote, ToTokens};
 use syn::parse::{Parse, ParseStream};
 use syn::{parse_macro_input, DeriveInput, Generics, Token};
 
@@ -22,6 +22,13 @@ const ATTR: &str = "arg";
 const OPT_SKIP: &str = "skip";
 const ARG_CONSUMER: &str = "consumer";
 const PROP_ANY_ADDED: &str = "any_added";
+
+struct Runtime {
+    struct_name: Ident,
+    generics: Generics,
+    fields: ParsedFields,
+    opts: ContainerOpts,
+}
 
 /// Derive the `Arg` trait.
 ///
@@ -41,6 +48,7 @@ const PROP_ANY_ADDED: &str = "any_added";
 /// | Attribute | Description |
 /// |---|---|
 /// | `arg(drop_name)` | Derive an `Arg::add_to` that ignores its `name` parameter |
+/// | `arg(to_string)` | Derive an `Arg::add_unnamed_to` that uses `self.to_string()` as the argument |
 ///
 /// # Variant attributes
 ///
@@ -58,15 +66,27 @@ pub fn derive_args(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 
     let (g1, g2, g3) = generics.split_for_impl();
 
+    let consumer = new_ident(ARG_CONSUMER);
+
     let named_impl = if opts.drop_name {
         Some(quote! {
             #[inline]
-            fn add_to(&self, _: &str, consumer: &mut impl ::argley::ArgConsumer) -> bool {
-                ::argley::Arg::add_unnamed_to(self, consumer)
+            fn add_to(&self, _: &str, #consumer: &mut impl ::argley::ArgConsumer) -> bool {
+                ::argley::Arg::add_unnamed_to(self, #consumer)
             }
         })
     } else {
         None
+    };
+
+    let fields = if opts.to_string {
+        quote! {
+            fn add_unnamed_to(&self, #consumer: &mut impl ::argley::ArgConsumer) -> bool {
+                ::argley::Arg::add_unnamed_to(&::std::string::ToString::to_string(self), #consumer)
+            }
+        }
+    } else {
+        fields.into_token_stream()
     };
 
     (quote! {
@@ -80,13 +100,6 @@ pub fn derive_args(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     .into()
 }
 
-struct Runtime {
-    struct_name: Ident,
-    generics: Generics,
-    fields: ParsedFields,
-    opts: ContainerOpts,
-}
-
 impl Parse for Runtime {
     fn parse(input: ParseStream) -> syn::Result<Self> {
         let DeriveInput {
@@ -97,9 +110,15 @@ impl Parse for Runtime {
             ..
         } = input.parse::<DeriveInput>()?;
 
+        let opts = ContainerOpts::try_from(attrs)?;
+
         Ok(Self {
-            fields: ParsedFields::try_from(data)?,
-            opts: attrs.try_into()?,
+            fields: if opts.to_string {
+                ParsedFields::new_empty_from(&data)?
+            } else {
+                ParsedFields::try_from(data)?
+            },
+            opts,
             struct_name,
             generics,
         })
