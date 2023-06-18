@@ -62,4 +62,30 @@ pub trait Arg {
     /// assert_eq!(&args[..], &["foo", "bar"]);
     /// ```
     fn add_unnamed_to(&self, consumer: &mut impl ArgConsumer) -> bool;
+
+    /// Shorthand for creating an [`ArgConsumer`], passing it to
+    /// [`add_unnamed_to`](Arg::add_unnamed_to) and returning it.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use {argley::prelude::*, std::ffi::OsString};
+    ///
+    /// #[derive(Arg)]
+    /// struct Args {
+    ///   foo: &'static str,
+    /// }
+    ///
+    /// let args = Args { foo: "bar" };
+    ///
+    /// let collect = args.collect_to::<Vec<OsString>>();
+    /// let is_eq_to: Vec<OsString> = vec!["--foo".into(), "bar".into()];
+    ///
+    /// assert_eq!(collect, is_eq_to);
+    /// ```
+    fn collect_to<C: Default + ArgConsumer>(&self) -> C {
+        let mut consumer = C::default();
+        self.add_unnamed_to(&mut consumer);
+        consumer
+    }
 }
