@@ -9,7 +9,7 @@ use syn::parse::{Parse, ParseStream};
 use syn::{parse_macro_input, parse_quote, DeriveInput, Generics, Token};
 
 use crate::container_opts::ContainerOpts;
-use crate::parsed_fields::ParsedFields;
+use crate::parsed_fields::{FunctionSignature, ParsedFields};
 
 mod container_opts;
 mod field_ident;
@@ -49,6 +49,7 @@ struct Runtime {
 /// |---|---|
 /// | `arg(drop_name)` | Derive an `Arg::add_to` that ignores its `name` parameter |
 /// | `arg(to_string)` | Derive an `Arg::add_unnamed_to` that uses `self.to_string()` as the argument |
+/// | `arg(as_repr)` | For use on enums - use `(*self as REPR)` as the argument on enums with `#[repr(INT)]` |
 ///
 /// # Variant attributes
 ///
@@ -78,17 +79,40 @@ pub fn derive_args(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     };
 
     let fields = if opts.to_string {
-        if !generics.params.is_empty() || generics.where_clause.is_some() {
+        if has_generics(&generics) {
             generics
                 .make_where_clause()
                 .predicates
                 .push(parse_quote! { Self: ::std::string::ToString });
         }
 
+        let sig = FunctionSignature {
+            inline: false,
+            consumer_arg: ARG_CONSUMER,
+        };
+
         quote! {
-            fn add_unnamed_to(&self, #consumer: &mut impl ::argley::ArgConsumer) -> bool {
+            #sig {
                 ::argley::ArgConsumer::add_arg(#consumer, ::std::string::ToString::to_string(self));
                 true
+            }
+        }
+    } else if let Some(as_repr) = opts.as_repr {
+        if has_generics(&generics) {
+            generics
+                .make_where_clause()
+                .predicates
+                .push(parse_quote! { Self: ::std::borrow::ToOwned });
+        }
+
+        let sig = FunctionSignature {
+            inline: true,
+            consumer_arg: ARG_CONSUMER,
+        };
+
+        quote! {
+            #sig {
+                ::argley::Arg::add_unnamed_to(&(::std::borrow::ToOwned::to_owned(self) as #as_repr), #consumer)
             }
         }
     } else {
@@ -120,11 +144,11 @@ impl Parse for Runtime {
         let opts = ContainerOpts::try_from(attrs)?;
 
         Ok(Self {
-            fields: if opts.to_string {
-                ParsedFields::new_empty_from(&data)?
+            fields: if opts.should_collect_enum_fields() {
+                ParsedFields::try_from(data)
             } else {
-                ParsedFields::try_from(data)?
-            },
+                ParsedFields::new_empty_from(&data)
+            }?,
             opts,
             struct_name,
             generics,
@@ -162,4 +186,8 @@ impl<T, E, I: Iterator<Item = Result<T, E>>> TryCollectStable<T, E> for I {
 fn parse_eq<T: Parse>(stream: ParseStream) -> syn::Result<T> {
     stream.parse::<Token![=]>()?;
     stream.parse()
+}
+
+fn has_generics(generics: &Generics) -> bool {
+    !(generics.params.is_empty() && generics.where_clause.is_none())
 }

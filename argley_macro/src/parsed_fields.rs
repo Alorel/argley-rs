@@ -111,9 +111,9 @@ fn on_union(un: &impl Spanned) -> syn::Error {
     syn::Error::new(un.span(), "Unions not supported")
 }
 
-struct FunctionSignature<'a> {
-    inline: bool,
-    consumer_arg: &'a str,
+pub struct FunctionSignature<'a> {
+    pub inline: bool,
+    pub consumer_arg: &'a str,
 }
 
 impl ToTokens for FunctionSignature<'_> {
