@@ -24,6 +24,23 @@ mod test {
     }
 
     #[test]
+    fn drop_name() {
+        #[derive(Arg)]
+        #[arg(drop_name)]
+        struct Dropped(&'static str);
+
+        #[derive(Arg)]
+        struct Kept(&'static str);
+
+        let mut result = CollectedArgs::new();
+
+        assert!(Dropped("d").add_to("dropped", &mut result));
+        assert!(Kept("k").add_to("kept", &mut result));
+
+        assert_eq!(&result[..], &["d", "kept", "k"]);
+    }
+
+    #[test]
     fn formatter() {
         struct Newtype(&'static str);
         impl Newtype {
