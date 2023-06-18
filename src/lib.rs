@@ -65,7 +65,7 @@
 #![cfg_attr(doc_cfg, feature(doc_cfg))]
 
 pub use arg::Arg;
-pub use arg_consumer::ArgConsumer;
+pub use arg_consumer::{ArgConsumer, CollectedArgs};
 
 mod arg;
 mod arg_consumer;
