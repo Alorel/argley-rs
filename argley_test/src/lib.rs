@@ -205,5 +205,20 @@ mod test {
             assert!(Foo::ValuedUnit.add_unnamed_to(&mut result));
             assert_eq!(&result[..], &["100"]);
         }
+
+        #[test]
+        fn as_repr() {
+            #[derive(Arg)]
+            #[arg(as_repr)]
+            #[repr(u8)]
+            #[derive(Copy, Clone)]
+            enum AsReprEnum {
+                _A = 10,
+                B = 20,
+            }
+
+            let result = AsReprEnum::B.collect_to::<CollectedArgs>();
+            assert_eq!(&result[..], &["20"]);
+        }
     }
 }
