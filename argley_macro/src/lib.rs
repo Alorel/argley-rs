@@ -3,12 +3,12 @@
 #![warn(missing_docs)]
 #![allow(clippy::manual_let_else)]
 
-use crate::container_opts::ContainerOpts;
 use proc_macro2::{Ident, Span};
-use quote::quote;
+use quote::{quote, ToTokens};
 use syn::parse::{Parse, ParseStream};
-use syn::{parse_macro_input, DeriveInput, Generics, Token};
+use syn::{parse_macro_input, parse_quote, DeriveInput, Generics, Token};
 
+use crate::container_opts::ContainerOpts;
 use crate::parsed_fields::ParsedFields;
 
 mod container_opts;
@@ -22,6 +22,13 @@ const ATTR: &str = "arg";
 const OPT_SKIP: &str = "skip";
 const ARG_CONSUMER: &str = "consumer";
 const PROP_ANY_ADDED: &str = "any_added";
+
+struct Runtime {
+    struct_name: Ident,
+    generics: Generics,
+    fields: ParsedFields,
+    opts: ContainerOpts,
+}
 
 /// Derive the `Arg` trait.
 ///
@@ -41,6 +48,7 @@ const PROP_ANY_ADDED: &str = "any_added";
 /// | Attribute | Description |
 /// |---|---|
 /// | `arg(drop_name)` | Derive an `Arg::add_to` that ignores its `name` parameter |
+/// | `arg(to_string)` | Derive an `Arg::add_unnamed_to` that uses `self.to_string()` as the argument |
 ///
 /// # Variant attributes
 ///
@@ -51,24 +59,43 @@ const PROP_ANY_ADDED: &str = "any_added";
 pub fn derive_args(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let Runtime {
         struct_name,
-        generics,
+        mut generics,
         fields,
         opts,
     } = parse_macro_input!(input as Runtime);
 
-    let (g1, g2, g3) = generics.split_for_impl();
+    let consumer = new_ident(ARG_CONSUMER);
 
     let named_impl = if opts.drop_name {
         Some(quote! {
             #[inline]
-            fn add_to(&self, _: &str, consumer: &mut impl ::argley::ArgConsumer) -> bool {
-                ::argley::Arg::add_unnamed_to(self, consumer)
+            fn add_to(&self, _: &str, #consumer: &mut impl ::argley::ArgConsumer) -> bool {
+                ::argley::Arg::add_unnamed_to(self, #consumer)
             }
         })
     } else {
         None
     };
 
+    let fields = if opts.to_string {
+        if !generics.params.is_empty() || generics.where_clause.is_some() {
+            generics
+                .make_where_clause()
+                .predicates
+                .push(parse_quote! { Self: ::std::string::ToString });
+        }
+
+        quote! {
+            fn add_unnamed_to(&self, #consumer: &mut impl ::argley::ArgConsumer) -> bool {
+                ::argley::ArgConsumer::add_arg(#consumer, ::std::string::ToString::to_string(self));
+                true
+            }
+        }
+    } else {
+        fields.into_token_stream()
+    };
+
+    let (g1, g2, g3) = generics.split_for_impl();
     (quote! {
         #[automatically_derived]
         impl #g1 ::argley::Arg for #struct_name #g2 #g3 {
@@ -78,13 +105,6 @@ pub fn derive_args(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         }
     })
     .into()
-}
-
-struct Runtime {
-    struct_name: Ident,
-    generics: Generics,
-    fields: ParsedFields,
-    opts: ContainerOpts,
 }
 
 impl Parse for Runtime {
@@ -97,9 +117,15 @@ impl Parse for Runtime {
             ..
         } = input.parse::<DeriveInput>()?;
 
+        let opts = ContainerOpts::try_from(attrs)?;
+
         Ok(Self {
-            fields: ParsedFields::try_from(data)?,
-            opts: attrs.try_into()?,
+            fields: if opts.to_string {
+                ParsedFields::new_empty_from(&data)?
+            } else {
+                ParsedFields::try_from(data)?
+            },
+            opts,
             struct_name,
             generics,
         })

@@ -31,8 +31,8 @@ rustdoc-args = [
 default = ["derive"]
 derive = ["dep:argley_macro"]
 
-[dependencies]
-argley_macro = {version = "=1.2.0", path = "argley_macro", optional = true}
-
 [workspace]
 members = ["argley_macro", "argley_test"]
+
+[dependencies]
+argley_macro = {version = "=1.2.0", path = "argley_macro", optional = true}

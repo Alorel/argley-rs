@@ -1,5 +1,10 @@
 #[cfg(test)]
 mod test {
+    use std::fmt::{Display, Formatter};
+
+    use derive_more::Display;
+    use static_assertions::{assert_impl_one, assert_not_impl_all};
+
     use argley::prelude::*;
     use argley::CollectedArgs;
 
@@ -58,12 +63,39 @@ mod test {
         assert_eq!(&result[..], &["formatter-test"]);
     }
 
+    #[test]
+    fn to_string() {
+        #[derive(Arg, Display)]
+        #[arg(to_string)]
+        #[display(fmt = "foo: {_0}")]
+        struct Newtype(u8);
+
+        let mut result = CollectedArgs::new();
+        Newtype(42).add_unnamed_to(&mut result);
+        assert_eq!(&result[..], &["foo: 42"]);
+
+        #[derive(Arg)]
+        #[arg(to_string)]
+        struct Wrapper<T>(T);
+        impl<T: Display> Display for Wrapper<T> {
+            fn fmt(&self, _: &mut Formatter<'_>) -> std::fmt::Result {
+                Ok(())
+            }
+        }
+
+        #[allow(dead_code)]
+        struct NonDisplay;
+
+        assert_not_impl_all!(Wrapper<NonDisplay>: Arg);
+        assert_impl_one!(Wrapper<u8>: Arg);
+    }
+
     mod enums {
-        use argley::CollectedArgs;
         use std::borrow::Cow;
         use std::ffi::OsString;
 
         use argley::prelude::*;
+        use argley::CollectedArgs;
 
         #[derive(Arg)]
         struct Nested(u8);

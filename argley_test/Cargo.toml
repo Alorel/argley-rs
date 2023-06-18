@@ -6,5 +6,7 @@ publish = false
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
-[dependencies]
+[dev-dependencies]
 argley = {path = "..", features = ["derive"]}
+derive_more = {version = "0.99.17", features = ["display"], default-features = false}
+static_assertions = "1.1"
