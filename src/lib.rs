@@ -1,5 +1,5 @@
-//! Turn a struct into arguments for a [`Command`]. See the [derive macro](argley_macro::Arg) for
-//! options you can pass in.
+//! Turn a struct into arguments for a [`Command`](::std::process::Command). See the
+//! [derive macro](argley_macro::Arg) for options you can pass in.
 //!
 //! ```
 //!# use argley::prelude::*;
