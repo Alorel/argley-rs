@@ -5,12 +5,14 @@
 
 use proc_macro2::{Ident, Span};
 use quote::{quote, ToTokens};
+use std::rc::Rc;
 use syn::parse::{Parse, ParseStream};
 use syn::{parse_macro_input, parse_quote, DeriveInput, Generics, Token};
 
 use crate::container_opts::ContainerOpts;
 use crate::parsed_fields::{FunctionSignature, ParsedFields};
 
+mod any_added_wrap;
 mod container_opts;
 mod field_ident;
 mod field_opts;
@@ -21,13 +23,13 @@ mod struct_field;
 const ATTR: &str = "arg";
 const OPT_SKIP: &str = "skip";
 const ARG_CONSUMER: &str = "consumer";
-const PROP_ANY_ADDED: &str = "any_added";
+const PROP_ANY_ADDED: &str = "__argley_has_added_value_to_consumer";
 
 struct Runtime {
     struct_name: Ident,
     generics: Generics,
     fields: ParsedFields,
-    opts: ContainerOpts,
+    opts: Rc<ContainerOpts>,
 }
 
 /// Derive the `Arg` trait.
@@ -50,6 +52,7 @@ struct Runtime {
 /// | `arg(drop_name)` | Derive an `Arg::add_to` that ignores its `name` parameter |
 /// | `arg(to_string)` | Derive an `Arg::add_unnamed_to` that uses `self.to_string()` as the argument |
 /// | `arg(as_repr)` | For use on enums - use `(*self as REPR)` as the argument on enums with `#[repr(INT)]` |
+/// | `arg(static_args = ["--arg1", "value1", "--foobar"])` | Always output this set of args regardless of any struct properties |
 ///
 /// # Variant attributes
 ///
@@ -86,10 +89,7 @@ pub fn derive_args(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                 .push(parse_quote! { Self: ::std::string::ToString });
         }
 
-        let sig = FunctionSignature {
-            inline: false,
-            consumer_arg: ARG_CONSUMER,
-        };
+        let sig = FunctionSignature::with_consumer(false);
 
         quote! {
             #sig {
@@ -97,7 +97,7 @@ pub fn derive_args(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                 true
             }
         }
-    } else if let Some(as_repr) = opts.as_repr {
+    } else if let Some(as_repr) = &opts.as_repr {
         if has_generics(&generics) {
             generics
                 .make_where_clause()
@@ -105,10 +105,7 @@ pub fn derive_args(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                 .push(parse_quote! { Self: ::std::borrow::ToOwned });
         }
 
-        let sig = FunctionSignature {
-            inline: true,
-            consumer_arg: ARG_CONSUMER,
-        };
+        let sig = FunctionSignature::with_consumer(true);
 
         quote! {
             #sig {
@@ -120,6 +117,7 @@ pub fn derive_args(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     };
 
     let (g1, g2, g3) = generics.split_for_impl();
+
     (quote! {
         #[automatically_derived]
         impl #g1 ::argley::Arg for #struct_name #g2 #g3 {
@@ -141,13 +139,13 @@ impl Parse for Runtime {
             ..
         } = input.parse::<DeriveInput>()?;
 
-        let opts = ContainerOpts::try_from(attrs)?;
+        let opts = Rc::new(ContainerOpts::try_from(attrs)?);
 
         Ok(Self {
             fields: if opts.should_collect_enum_fields() {
-                ParsedFields::try_from(data)
+                ParsedFields::from_data(opts.clone(), data)
             } else {
-                ParsedFields::new_empty_from(&data)
+                ParsedFields::new_empty(opts.clone(), &data)
             }?,
             opts,
             struct_name,

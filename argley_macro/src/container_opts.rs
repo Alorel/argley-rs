@@ -1,14 +1,15 @@
 use proc_macro2::Ident;
 use syn::spanned::Spanned;
-use syn::Attribute;
+use syn::{Attribute, Expr, Lit, Token};
 
 use crate::{TryCollectStable, ATTR};
 
-#[derive(Default, Debug)]
+#[derive(Default)]
 pub struct ContainerOpts {
     pub drop_name: bool,
     pub as_repr: Option<Ident>,
     pub to_string: bool,
+    pub static_args: Option<syn::ExprArray>,
 }
 
 impl ContainerOpts {
@@ -76,6 +77,25 @@ impl TryFrom<Attribute> for ContainerOpts {
                         opts.as_repr = Some(path.clone());
                         return Ok(());
                     }
+                    "static_args" => {
+                        meta.input.parse::<Token![=]>()?;
+                        let static_args = meta.input.parse::<syn::ExprArray>()?;
+                        for el in &static_args.elems {
+                            let span = match el {
+                                Expr::Lit(ref lit) => match lit.lit {
+                                    Lit::Str(_) => continue,
+                                    ref other => other.span(),
+                                },
+                                other => other.span(),
+                            };
+
+                            return Err(syn::Error::new(span, "expected string literal"));
+                        }
+
+                        opts.static_args = Some(static_args);
+
+                        return Ok(());
+                    }
                     _ => path.span(),
                 }
             } else {
@@ -102,6 +122,15 @@ impl FromIterator<ContainerOpts> for ContainerOpts {
                 if opts.as_repr.is_some() {
                     acc.as_repr = opts.as_repr;
                 }
+
+                if let Some(add_args) = opts.static_args {
+                    if let Some(ref mut static_args) = acc.static_args {
+                        static_args.elems.extend(add_args.elems);
+                    } else {
+                        acc.static_args = Some(add_args);
+                    }
+                }
+
                 acc
             })
     }

@@ -2,7 +2,7 @@
 
 [package]
 name = "argley"
-version = "1.2.0"
+version = "1.3.0"
 edition = "2021"
 rust-version = "1.60.0"
 license = "Apache-2.0"
@@ -39,6 +39,6 @@ tokio = ["dep:tokio"]
 members = ["argley_macro", "argley_test"]
 
 [dependencies]
-argley_macro = {version = "~1.2", path = "argley_macro", optional = true}
+argley_macro = {version = "1.3", path = "argley_macro", optional = true}
 tokio = {version = "1", features = ["process"], optional = true, default-features = false}
 async-std = {version = "1", features = ["unstable"], optional = true, default-features = false}

@@ -1,8 +1,10 @@
 use std::cmp::Ordering;
 use std::iter::Sum;
 
+use crate::{parse_eq, OPT_SKIP};
 use proc_macro2::{Ident, Literal};
-use syn::ExprPath;
+use syn::spanned::Spanned;
+use syn::{Attribute, ExprPath};
 
 #[derive(Default)]
 pub struct FieldOpts {
@@ -34,6 +36,54 @@ impl FieldOpts {
                 _ => return None,
             },
         })
+    }
+}
+
+impl TryFrom<Attribute> for FieldOpts {
+    type Error = syn::Error;
+
+    fn try_from(attr: Attribute) -> Result<Self, Self::Error> {
+        let mut opts = Self::default();
+
+        attr.parse_nested_meta(|meta| {
+            let ident = match meta.path.get_ident() {
+                Some(ident) => ident,
+                None => {
+                    return Err(syn::Error::new(meta.path.span(), "Expected `Ident`"));
+                }
+            };
+
+            match ident.to_string().as_str() {
+                v if v == OPT_SKIP => {
+                    opts.skip = true;
+                }
+                "short" => {
+                    opts.short = true;
+                }
+                "variadic" => {
+                    opts.variadic = Some(ident.clone());
+                }
+                "position" => {
+                    let literal = parse_eq::<Literal>(meta.input)?;
+                    if let Ok(pos) = literal.to_string().parse() {
+                        opts.position = Some(pos);
+                    } else {
+                        return Err(syn::Error::new(literal.span(), "Position must be a u16"));
+                    }
+                }
+                "formatter" => {
+                    opts.formatter = Some(parse_eq(meta.input)?);
+                }
+                "rename" => {
+                    opts.rename = Some(parse_eq(meta.input)?);
+                }
+                _ => return Err(syn::Error::new(ident.span(), "Unknown option")),
+            };
+
+            Ok(())
+        })?;
+
+        Ok(opts)
     }
 }
 
