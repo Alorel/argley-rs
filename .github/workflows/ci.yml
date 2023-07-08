@@ -56,7 +56,10 @@ jobs:
       - name: cargo fmt
         run: cargo fmt --all --check
       - name: Clippy
-        run: cargo clippy --workspace --tests --all-features -- -Dclippy::correctness -Dclippy::suspicious -Dclippy::complexity -Dclippy::perf -Dclippy::style -Dclippy::pedantic
+        run: >
+          cargo clippy --workspace --tests --all-features --
+          -Dclippy::correctness -Dclippy::suspicious -Dclippy::complexity -Dclippy::perf -Dclippy::style -Dclippy::pedantic
+          -Aclippy::default-trait-access
   test:
     name: Rust ${{matrix.toolchain}} on ${{matrix.os}}
     runs-on: ${{matrix.os}}

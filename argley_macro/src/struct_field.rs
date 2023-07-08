@@ -1,13 +1,13 @@
 use std::cmp::Ordering;
+use std::iter::Enumerate;
 
 use proc_macro2::{Literal, Span, TokenStream};
 use quote::{quote, ToTokens, TokenStreamExt};
-use syn::spanned::Spanned;
-use syn::{Field, Fields};
+use syn::{Attribute, Field, Fields};
 
 use crate::field_ident::FieldIdent;
 use crate::field_opts::FieldOpts;
-use crate::{new_ident, parse_eq, TryCollectStable, ARG_CONSUMER, ATTR, OPT_SKIP, PROP_ANY_ADDED};
+use crate::{new_ident, TryCollectStable, ARG_CONSUMER, ATTR};
 
 pub struct StructField {
     pub opts: FieldOpts,
@@ -73,133 +73,13 @@ impl StructField {
         })
     }
 
-    #[allow(clippy::too_many_lines)]
     pub fn collect_from_iter(
         fields: impl IntoIterator<Item = Field>,
         is_struct: bool,
     ) -> syn::Result<CollectFromIter> {
-        let mut has_variadic = false;
         let mut has_skips = false;
-        let mut attr_collector = Vec::new();
 
-        let mut fields = fields
-            .into_iter()
-            .enumerate()
-            .filter_map(
-                |(idx, field): (usize, Field)| -> Option<syn::Result<StructField>> {
-                    let mut opts = {
-                        let attrs = field
-                            .attrs
-                            .into_iter()
-                            .filter_map(move |attr| {
-                                if !attr.path().is_ident(ATTR) {
-                                    return None;
-                                }
-
-                                let mut opts = FieldOpts::default();
-                                let opts_result = attr.parse_nested_meta(|meta| {
-                                    let ident = match meta.path.get_ident() {
-                                        Some(ident) => ident,
-                                        None => {
-                                            return Err(syn::Error::new(
-                                                meta.path.span(),
-                                                "Expected `Ident`",
-                                            ));
-                                        }
-                                    };
-
-                                    match ident.to_string().as_str() {
-                                        v if v == OPT_SKIP => {
-                                            opts.skip = true;
-                                        }
-                                        "short" => {
-                                            opts.short = true;
-                                        }
-                                        "variadic" => {
-                                            opts.variadic = Some(ident.clone());
-                                        }
-                                        "position" => {
-                                            let literal: Literal = parse_eq(meta.input)?;
-                                            if let Ok(pos) = literal.to_string().parse() {
-                                                opts.position = Some(pos);
-                                            } else {
-                                                return Err(syn::Error::new(
-                                                    literal.span(),
-                                                    "Position must be a u16",
-                                                ));
-                                            }
-                                        }
-                                        "formatter" => {
-                                            opts.formatter = Some(parse_eq(meta.input)?);
-                                        }
-                                        "rename" => {
-                                            opts.rename = Some(parse_eq(meta.input)?);
-                                        }
-                                        _ => {
-                                            return Err(syn::Error::new(
-                                                ident.span(),
-                                                "Unknown option",
-                                            ))
-                                        }
-                                    };
-                                    Ok(())
-                                });
-
-                                Some(if let Err(e) = opts_result {
-                                    Err(e)
-                                } else {
-                                    Ok(opts)
-                                })
-                            })
-                            .try_collect_to(&mut attr_collector);
-
-                        if let Err(e) = attrs {
-                            return Some(Err(e));
-                        }
-
-                        attr_collector.drain(..).sum::<FieldOpts>()
-                    };
-
-                    if opts.skip {
-                        has_skips = true;
-                        return None;
-                    }
-
-                    if let Some(variadic) = &opts.variadic {
-                        if has_variadic {
-                            return Some(Err(syn::Error::new(
-                                variadic.span(),
-                                "Only one variadic field allowed",
-                            )));
-                        }
-                        has_variadic = true;
-                    }
-
-                    let ident = if let Some(ident) = field.ident {
-                        FieldIdent::Ident(ident)
-                    } else {
-                        // Make unnamed by default
-                        if opts.is_default_field_name() {
-                            opts.position = Some(idx.try_into().unwrap_or(u16::MAX));
-                        }
-
-                        let ident = FieldIdent::Idx(idx);
-                        if is_struct {
-                            ident
-                        } else {
-                            ident.with_prefix('f')
-                        }
-                    };
-
-                    Some(Ok(StructField {
-                        opts,
-                        idx,
-                        is_struct,
-                        ident,
-                    }))
-                },
-            )
-            .try_collect()?;
+        let mut fields = FieldFilterMapper::new(is_struct, &mut has_skips, fields).try_collect()?;
 
         if is_struct {
             fields.sort_by(StructField::cmp);
@@ -218,7 +98,7 @@ impl ToTokens for StructField {
             ..
         } = *self;
 
-        tokens.append_all(quote! { if ::argley::Arg:: });
+        tokens.append_all(quote! { ::argley::Arg:: });
 
         tokens.append_all({
             let field_expr = {
@@ -254,13 +134,107 @@ impl ToTokens for StructField {
                 quote! { add_to(#field_expr, #name, #consumer) }
             }
         });
-
-        let any_added = new_ident(PROP_ANY_ADDED);
-        tokens.append_all(quote! {{ #any_added = true; } });
     }
 }
 
 pub struct CollectFromIter {
     pub fields: Vec<StructField>,
     pub has_skips: bool,
+}
+
+#[derive(Default)]
+struct AttrCollector(Vec<FieldOpts>);
+impl AttrCollector {
+    fn next(&mut self, attrs: impl IntoIterator<Item = Attribute>) -> syn::Result<FieldOpts> {
+        attrs
+            .into_iter()
+            .filter_map(move |attr| {
+                if attr.path().is_ident(ATTR) {
+                    Some(FieldOpts::try_from(attr))
+                } else {
+                    None
+                }
+            })
+            .try_collect_to(&mut self.0)?;
+
+        Ok(self.0.drain(..).sum::<FieldOpts>())
+    }
+}
+
+struct FieldFilterMapper<'a, I> {
+    src: Enumerate<I>,
+    is_struct: bool,
+    has_skips: &'a mut bool,
+    has_variadic: bool,
+    attr_collector: AttrCollector,
+}
+
+impl<'a, I: Iterator<Item = Field>> FieldFilterMapper<'a, I> {
+    fn new(is_struct: bool, has_skips: &'a mut bool, src: impl IntoIterator<IntoIter = I>) -> Self {
+        Self {
+            is_struct,
+            src: src.into_iter().enumerate(),
+            has_skips,
+            has_variadic: false,
+            attr_collector: Default::default(),
+        }
+    }
+}
+
+impl<'a, I: Iterator<Item = Field>> Iterator for FieldFilterMapper<'a, I> {
+    type Item = syn::Result<StructField>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let (idx, field) = self.src.next()?;
+
+        let mut opts = match self.attr_collector.next(field.attrs) {
+            Ok(opts) => opts,
+            Err(err) => return Some(Err(err)),
+        };
+
+        if opts.skip {
+            *self.has_skips = true;
+
+            return self.next();
+        }
+
+        if let Some(ref variadic) = opts.variadic {
+            if self.has_variadic {
+                return Some(Err(syn::Error::new(
+                    variadic.span(),
+                    "Only one variadic field allowed",
+                )));
+            }
+
+            self.has_variadic = true;
+        }
+
+        let ident = if let Some(ident) = field.ident {
+            FieldIdent::Ident(ident)
+        } else {
+            // Make unnamed by default
+            if opts.is_default_field_name() {
+                opts.position = Some(idx.try_into().unwrap_or(u16::MAX));
+            }
+
+            let ident = FieldIdent::Idx(idx);
+            if self.is_struct {
+                ident
+            } else {
+                ident.with_prefix('f')
+            }
+        };
+
+        Some(Ok(StructField {
+            opts,
+            idx,
+            is_struct: self.is_struct,
+            ident,
+        }))
+    }
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (0, self.src.size_hint().1)
+    }
 }
