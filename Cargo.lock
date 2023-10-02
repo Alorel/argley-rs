@@ -193,10 +193,11 @@ dependencies = [
 
 [[package]]
 name = "delegate-display"
-version = "1.0.8"
+version = "2.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "76045d410dc101a120a289144b881d0572dbb165532c84c03df2b8bd3fcd638c"
+checksum = "98a85201f233142ac819bbf6226e36d0b5e129a47bd325084674261c82d4cd66"
 dependencies = [
+ "macroific",
  "proc-macro2",
  "quote",
  "syn 2.0.18",
@@ -337,6 +338,53 @@ name = "log"
 version = "0.4.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b06a4cde4c0f271a446782e3eff8de789548ce57dbc8eca9292c27f4a42004b4"
+
+[[package]]
+name = "macroific"
+version = "1.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a304d83e1ef544546dec28cafb9fcb72bfd281da112042d9279808b2ef6be600"
+dependencies = [
+ "macroific_attr_parse",
+ "macroific_core",
+ "macroific_macro",
+]
+
+[[package]]
+name = "macroific_attr_parse"
+version = "1.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cd34ba6db76d16ae96fbb873ea972524d6b83577040e2758582217aaa2527546"
+dependencies = [
+ "cfg-if",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.18",
+]
+
+[[package]]
+name = "macroific_core"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c5a4902dfaf37c1480d6573bbc009b41e50e859acd11f5dade360a0a17ecbefb"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.18",
+]
+
+[[package]]
+name = "macroific_macro"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b0c9853143cbed7f1e41dc39fee95f9b361bec65c8dc2a01bf609be01b61f5ae"
+dependencies = [
+ "macroific_attr_parse",
+ "macroific_core",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.18",
+]
 
 [[package]]
 name = "memchr"
