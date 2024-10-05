@@ -165,7 +165,7 @@ impl TryFrom<Variant> for ParsedVariant {
                         Ok(())
                     });
 
-                    Some(result.map(move |_| unit_variant_value))
+                    Some(result.map(move |()| unit_variant_value))
                 })
                 .try_collect()?
                 .into_iter()

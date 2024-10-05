@@ -1,5 +1,7 @@
 #[cfg(test)]
 mod test {
+    #![allow(dead_code)]
+
     use std::ffi::{OsStr, OsString};
     use std::fmt::{Display, Formatter};
 
