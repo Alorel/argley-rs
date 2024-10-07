@@ -8,5 +8,5 @@ publish = false
 
 [dev-dependencies]
 argley = {path = "..", features = ["derive"]}
-derive_more = {version = "0.99.17", features = ["display"], default-features = false}
+derive_more = {version = "0.99.18", features = ["display"], default-features = false}
 static_assertions = "1.1"
